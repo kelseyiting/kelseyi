@@ -1,0 +1,317 @@
+---
+heroImage: /src/assets/images/list virtualization in react.webp
+category: Development
+description: >-
+  List virtualization (also called Windowing) is a front-end performance
+  optimization technique that renders only the visible list items in the
+  viewport, rather than all items in the list. The benefit of a virtualized list
+  is the reduced amount of DOM nodes to render, yielding faster load time and
+  less memory used.
+pubDate: 2024-07-18T16:00:00.000Z
+tags:
+  - Source Code
+  - React
+  - Performance
+title: 'List Virtualization in React: A Deep Dive into react-window Source Code'
+---
+
+List virtualization (also called Windowing) is a front-end performance optimization technique that renders only the visible list items in the viewport, rather than all items in the list. The benefit of a virtualized list is the reduced amount of DOM nodes to render, yielding faster load time and less memory used.
+
+## Implement List Virtualization with Packages
+
+In React, there are several packages that help with List Virtualization:
+
+* [react-window](https://github.com/bvaughn/react-window)
+* [react-virtualized](https://github.com/bvaughn/react-virtualized)
+* [react-virtuoso](https://github.com/petyosi/react-virtuoso)
+
+Both react-window and react-virtualizaed are developed by Brian Vaughn. [According to the author](https://github.com/bvaughn/react-window), the main difference is that react-window is a complete rewrite of react-virtualized. While react-window is smaller and faster, react-virtualized offers more functionalities. It is recommended by the author to use react-window and extend as you need.
+
+## The Core Concepts of List Virtualization
+
+To better understand List Virtualization under the hood and implement on our own, we may first look into how react-window handles it.
+
+If you inspect the HTML of a virtualized list that uses react-window, you will notice that as you scroll, the total number of nodes in the list remains unchanged. However, the content of those nodes is dynamically updated with items that should be visible in the viewport.
+
+To create a seamless scrolling experience, similar to scrolling through a long list, visible items are positioned absolutely relative to the container, with well-maintained scroll offsets and positioning.
+
+From the above observation, a virtualized list should keep track of the container’s scroll position, each list item’s size, and its original position as if it were not virtualized in order to place it to the right position in the virtualized list.
+
+## The Trade-offs of List Virtualization
+
+1. Break some browser’s native functions
+
+List virtualization breaks some of the browser's native functions, such as search and print. Since off-viewport content doesn't exist in the DOM, it can't be searched. A common fix is to create your own search functionality to enable searching the full list. For printing, additional work is also needed to print the entire list.
+
+1. SEO
+
+A virtualized list, like a page with infinite scroll, poses challenges for web crawlers to index content that doesn't load initially. If SEO is important for your list, refer to [Infinite Scroll Search-friendly Recommendations](https://developers.google.com/search/blog/2014/02/infinite-scroll-search-friendly) and adjust your components and API to improve SEO.
+
+## Deep Dive into React-window Source Code
+
+The main goal of this article is to gain a deeper understanding of how packages like react-window implement list virtualization. We will focus specifically on the implementation of its VariableSizeList component with vertical scrolling, as the principles for all other variants are quite similar.
+
+(All examples and source code are extracted from the react-window repository.)
+
+First, let's look at the usage of a react-window VariableSizeList:
+
+```javascript
+import React from 'react';
+import ReactDOM from 'react-dom';
+import { VariableSizeList as List } from 'react-window';
+
+import './styles.css';
+
+// These row heights are arbitrary.
+// Yours should be based on the content of the row.
+const rowSizes = new Array(1000)
+  .fill(true)
+  .map(() => 25 + Math.round(Math.random() * 50));
+
+const getItemSize = index => rowSizes[index];
+
+const Row = ({ index, style }) => (
+  <div className={index % 2 ? 'ListItemOdd' : 'ListItemEven'} style={style}>
+    Row {index}
+  </div>
+);
+
+const Example = () => (
+  <List
+    className="List"
+    height={150}
+    itemCount={1000}
+    itemSize={getItemSize}
+    width={300}
+  >
+    {Row}
+  </List>
+);
+
+ReactDOM.render(<Example />, document.getElementById('root'));
+```
+
+The following List props are crucial for determining the correct scroll position and visible range of items:
+
+* height: The container's height
+* itemCount: The total number of items in the list
+* itemSize: A function that calculates item size based on the provided item index
+
+Play around with examples from the documentation to get a better idea.
+
+First, let's look into what happens when users scroll.
+
+```javascript
+** _onScrollVertical = (event: ScrollEvent): void => {
+  const { clientHeight, scrollHeight, scrollTop } = event.currentTarget;
+  this.setState(prevState => {
+    if (prevState.scrollOffset === scrollTop) {
+      // Scroll position may have been updated by cDM/cDU,
+      // In which case we don't need to trigger another render,
+      // And we don't want to update state.isScrolling.
+      return null;
+    }
+
+    // Prevent Safari's elastic scrolling from causing visual shaking when scrolling past bounds.
+    const scrollOffset = Math.max(
+      0,
+      Math.min(scrollTop, scrollHeight - clientHeight)
+    );
+
+    return {
+      isScrolling: true,
+      scrollDirection:
+        prevState.scrollOffset < scrollOffset ? 'forward' : 'backward',
+      scrollOffset,
+      scrollUpdateWasRequested: false,
+    };
+  }, this._resetIsScrollingDebounced);
+};**
+```
+
+The \_onScrollVertical function is a callback for the container's onScroll event. One of the key values this function calculates is the state property scrollOffset. This scrollOffset is determined based on the container's scrollTop, which indicates how far down the user has scrolled from the top of the container.
+
+With scrollOffset, we can find the range of visible items.
+
+```javascript
+_getRangeToRender(): [number, number, number, number] {
+  const { itemCount, overscanCount } = this.props;
+  const { isScrolling, scrollDirection, scrollOffset } = this.state;
+
+  if (itemCount === 0) {
+    return [0, 0, 0, 0];
+  }
+
+  const startIndex = getStartIndexForOffset(
+    this.props,
+    scrollOffset,
+    this._instanceProps
+  );
+  const stopIndex = getStopIndexForStartIndex(
+    this.props,
+    startIndex,
+    scrollOffset,
+    this._instanceProps
+  );
+
+  // Overscan by one item in each direction so that tab/focus works.
+  // If there isn't at least one extra item, tab loops back around.
+  const overscanBackward =
+    !isScrolling || scrollDirection === 'backward'
+      ? Math.max(1, overscanCount)
+      : 1;
+  const overscanForward =
+    !isScrolling || scrollDirection === 'forward'
+      ? Math.max(1, overscanCount)
+      : 1;
+
+  return [
+    Math.max(0, startIndex - overscanBackward),
+    Math.max(0, Math.min(itemCount - 1, stopIndex + overscanForward)),
+    startIndex,
+    stopIndex,
+  ];
+}
+```
+
+The \_getRangeToRender function calculates the index range of visible items. getStartIndexForOffset returns the start of the visible item range, and getStopIndexForStartIndex returns the end. We will look into these two functions later.
+
+The overscanCount property expands the visible range by adding extra items to the start and end. According to the [documentation](https://react-window.vercel.app), overscanCount helps with accessibility and reduces flashes when scrolling. Use overscanCount with discretion, as overuse can lead to performance issues.
+
+```javascript
+const getItemMetadata = (
+  props: Props<any>,
+  index: number,
+  instanceProps: InstanceProps
+): ItemMetadata => {
+  const { itemSize } = ((props: any): VariableSizeProps);
+  const { itemMetadataMap, lastMeasuredIndex } = instanceProps;
+
+  if (index > lastMeasuredIndex) {
+    let offset = 0;
+    if (lastMeasuredIndex >= 0) {
+      const itemMetadata = itemMetadataMap[lastMeasuredIndex];
+      offset = itemMetadata.offset + itemMetadata.size;
+    }
+
+    for (let i = lastMeasuredIndex + 1; i <= index; i++) {
+      let size = ((itemSize: any): itemSizeGetter)(i);
+
+      itemMetadataMap[i] = {
+        offset,
+        size,
+      };
+
+      offset += size;
+    }
+
+    instanceProps.lastMeasuredIndex = index;
+  }
+
+  return itemMetadataMap[index];
+};
+```
+
+getItemMetadata calculates the offset and size for each item. The item size is determined by the user-provided function itemSize, and the item offset is calculated by adding the previous item’s offset and size.
+
+For example, consider a list of three items with predefined sizes:
+
+* First Item:
+  * Size: 10
+  * Offset: 0 (starts at the top)
+* Second Item:
+  * Size: 20
+  * Offset: 10 (previous item’s size + previous item’s offset)
+* Third Item:
+  * Size: 15
+  * Offset: 30 (previous item’s size + previous item’s offset)
+
+ItemMetadataMap stores each item's information (size and offset), and lastMeasuredIndex records the index of the last measured item. If an item has already been measured before, the information will be returned directly from ItemMetadataMap. If not, the measurement will start from lastMeasuredIndex and continue up to the given item index.
+
+Next, we dive into how startIndex and endIndex are calculated.
+
+```javascript
+getStartIndexForOffset: (
+  props: Props<any>,
+  offset: number,
+  instanceProps: InstanceProps
+): number => findNearestItem(props, instanceProps, offset)
+```
+
+getStartIndexForOffset determines the start index of the visible item range. It finds the nearest item whose offset is closest to or equal to the given scrollOffset. It uses exponential search under the hood as the search algorithm.
+
+With startIndex, we can then determine the endIndex.
+
+```javascript
+getStopIndexForStartIndex: (
+  props: Props<any>,
+  startIndex: number,
+  scrollOffset: number,
+  instanceProps: InstanceProps
+): number => {
+  const { direction, height, itemCount, layout, width } = props;
+
+  // TODO Deprecate direction "horizontal"
+  const isHorizontal = direction === 'horizontal' || layout === 'horizontal';
+  const size = (((isHorizontal ? width : height): any): number);
+  const itemMetadata = getItemMetadata(props, startIndex, instanceProps);
+  const maxOffset = scrollOffset + size;
+
+  let offset = itemMetadata.offset + itemMetadata.size;
+  let stopIndex = startIndex;
+
+  while (stopIndex < itemCount - 1 && offset < maxOffset) {
+    stopIndex++;
+    offset += getItemMetadata(props, stopIndex, instanceProps).size;
+  }
+
+  return stopIndex;
+}
+```
+
+getStopIndexForStartIndex determines the end index of visible items based on a given offset. The maxOffset is calculated by adding the container’s scrollTop and height. It starts from the item with the startIndex and continues adding indices until it encounters an item with an offset greater than the maxOffset.
+
+Now that we understand how the visible range is calculated, it's time to apply the appropriate styles (position, height, etc.) to our visible items and render them in the list.
+
+```javascript
+_getItemStyle = (index: number): Object => {
+  const { direction, itemSize, layout } = this.props;
+
+  const itemStyleCache = this._getItemStyleCache(
+    shouldResetStyleCacheOnItemSizeChange && itemSize,
+    shouldResetStyleCacheOnItemSizeChange && layout,
+    shouldResetStyleCacheOnItemSizeChange && direction
+  );
+
+  let style;
+  if (itemStyleCache.hasOwnProperty(index)) {
+    style = itemStyleCache[index];
+  } else {
+    const offset = getItemOffset(this.props, index, this._instanceProps);
+    const size = getItemSize(this.props, index, this._instanceProps);
+
+    // TODO Deprecate direction "horizontal"
+    const isHorizontal =
+      direction === 'horizontal' || layout === 'horizontal';
+
+    const isRtl = direction === 'rtl';
+    const offsetHorizontal = isHorizontal ? offset : 0;
+    itemStyleCache[index] = style = {
+      position: 'absolute',
+      left: isRtl ? undefined : offsetHorizontal,
+      right: isRtl ? offsetHorizontal : undefined,
+      top: !isHorizontal ? offset : 0,
+      height: !isHorizontal ? size : '100%',
+      width: isHorizontal ? size : '100%',
+    };
+  }
+
+  return style;
+};
+```
+
+\_getItemStyle generates the correct size and position for each item. The offset and size come from our itemMetadataMap. itemStyleCache is used to cache each item’s calculated style.
+
+## Handle Dynamic Item Sizes in React-window
+
+For dynamic item sizes that cannot be calculated until rendered, such as in a real-time chatroom, react-window does not yet support this feature. This limitation is discussed [in this issue](https://github.com/bvaughn/react-window/issues/190). Possible workarounds are provided in the discussion, or you may consider other alternatives that have built-in support for dynamic item sizes, such as [https://github.com/petyosi/react-virtuoso](https://github.com/petyosi/react-virtuoso).

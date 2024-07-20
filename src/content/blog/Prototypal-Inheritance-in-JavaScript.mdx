@@ -1,0 +1,162 @@
+---
+heroImage: /src/assets/images/javascript object.webp
+category: Development
+description: >-
+  Most objects in JavaScript have an internal property called [[Prototype]],
+  which stores a reference to another object. When a property is accessed and
+  not found on the object itself, the JavaScript engine looks at its prototype,
+  then the prototype's prototype, and so on until the property is found or the
+  end of the prototype chain is reached. This mechanism is known as prototypal
+  inheritance. It allows objects to inherit properties and methods from their
+  prototypes. For example, built-in methods like .hasOwnProperty, .map, and
+  .filter are available on objects because they are inherited from their
+  prototypes, even though they are not explicitly declared on the objects
+  themselves.
+pubDate: 2024-07-21T16:00:00.000Z
+tags:
+  - JavaScript
+title: Prototypal Inheritance in JavaScript
+---
+
+Most objects in JavaScript have an internal property called \[\[Prototype]], which stores a reference to another object. When a property is accessed and not found on the object itself, the JavaScript engine looks at its prototype, then the prototype's prototype, and so on until the property is found or the end of the prototype chain is reached. This mechanism is realized because of prototypal inheritance. It allows objects to inherit properties and methods from their prototypes. For example, you are able to call methods like .hasOwnProperty, .map, and .filter because those methods are inherited from prototypes.
+
+## Different ways of creating objects
+
+Different ways of creating objects in JavaScript determine the source of the prototype.
+
+* Object Literal
+
+```javascript
+const obj = {}
+obj.__proto__ === Object.prototype
+```
+
+When an object is declared via object literal, the object’s prototype comes from the default object’s prototype: Object.prototype.
+
+* Object Constructor
+
+A constructor function is a special function that creates and initializes objects. new is used in order to create an instance from the constructor function.
+
+```javascript
+const obj = new Object()
+obj.__proto__ === Object.prototype // true
+```
+
+* Constructor Functions
+
+```javascript
+function Person(name) {
+  this.name = name;
+}
+
+const person = new Person('Kelsey');
+person.__proto__ === Person.prototype // true
+```
+
+* Class
+
+```javascript
+class Person {
+  constructor(name) {
+    this.name = name
+  }
+}
+const person = new Person('Kelsey')
+person.__proto__ === Person.prototype // true
+```
+
+You might notice all object creation via new will automatically point the its prototype to the constructor.
+
+* Object.create()
+
+```javascript
+const proto = { name: 'Kelsey' }
+const obj = Object.create(proto)
+obj.__proto__ === proto // true
+```
+
+Object.create() is useful when you want to create obejcts with specified prototypes.
+
+* Object.assign()
+
+```javascript
+const proto = { name: 'Kelsey' }
+const obj = Object.assign(proto, { : 'Kels' })
+obj.__proto__ === proto.__proto__ // true
+```
+
+Object.assign(target, source) helps you copy properties of an object (source) to another object (target). The result object holds the same reference as the target object, thus the prototype will remain the same before Invoking Object.assgin().
+
+## What Happens When You new
+
+In the above examples all instances created via this new keyword with a constructor all points the instance’s prototype to that of the constructor’s. Whenever you new an instance, it goes through four steps:
+
+```javascript
+function a(name) {
+  this.name = name;
+}
+const b = new a('JavaScript');
+```
+
+1. A new empty object is created.
+2. The new object's \_\_proto\_\_ is set to point to the constructor function's prototype property.
+3. The constructor function is called with the new object as its context (this).
+4. The new object is returned and assigned to the variable.
+
+## Beware when using for…in
+
+When using for…in to iterate through object keys, it loops through not only the object’s properties but also properties from its prototype chain.
+
+```javascript
+function Parent() {
+  this.ownProperty = 'own';
+}
+
+Parent.prototype.inheritedProperty = 'inherited';
+
+const child = new Parent();
+
+for (let prop in child) {
+  console.log(prop); // Logs "ownProperty" and "inheritedProperty"
+}
+```
+
+In order to iterate only the object’s properties, not the inherited ones, use hasOwnProperty or Object.hasOwn.
+
+```javascript
+function Parent() {
+  this.ownProperty = 'own';
+}
+
+Parent.prototype.inheritedProperty = 'inherited';
+
+const child = new Parent();
+
+for (let prop in child) {
+  if (child.hasOwnProperty(prop)) {
+    console.log(prop); // Logs only "ownProperty"
+  }
+}
+
+for (let prop in child) {
+  if (Object.hasOwn(child, prop)) {
+    console.log(prop); // Logs only "ownProperty"
+  }
+}
+```
+
+Note that Object.hasOwn is [intented as a replacement](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/hasOwn#description) for .hasOwnProperty, as Object.hasOwn works for objects with null prototype (such as objects created via Object.create(null)) or objects that overrides the .hasOwnProperty method.
+
+You might wonder why those built-in properties like length, .filter(), .map() are not iterated while they do exist in the prototype chain. That’s because those built-in properties are often not enumerable by default.  You can also create objects with not enumerable properties by using defineProperty to make sure those properties won’t be in the iteration.
+
+Other common methods to iterate through object keys like Object.keys(), Object.values(), and Object.entries() only iterate properties inside the object, not inherited properties.
+
+If you ever need to get both enumerable and not enumerable properties, use Reflect.ownKeys() or Object.getOwnPropertyNames().
+
+## Differences among prototype, \[\[prototype]], and proto
+
+prototype exists in all functions, but primarily used in constructor functions to share properties with all instances created from them.
+
+\[\[prototype]] is a internal property that points to the prototype of an object and cannot be accessed directly through code
+
+\_\_proto\_\_ exists in all objects and provides access to  the \[\[prototype]] property
