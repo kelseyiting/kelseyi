@@ -1,14 +1,10 @@
 {
-	"name": "blog-template",
+	"name": "kelseyi",
 	"type": "module",
 	"version": "1.1.0",
-	"description": "A template for creating a blog with Astro",
-	"author": "danielcgilibert",
+	"description": "It is Kelsey. This is where I take notes and document my learning journey.",
+	"author": "Kelsey",
 	"license": "GPL-3.0-only",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/danielcgilibert/blog-template"
-	},
 	"keywords": [
 		"astro",
 		"astrojs",
@@ -16,9 +12,6 @@
 		"astro-blog",
 		"astro-b"
 	],
-	"bugs": {
-		"url": "https://github.com/danielcgilibert/blog-template/issues"
-	},
 	"scripts": {
 		"dev": "npx tinacms dev -c \"astro dev\"",
 		"start": "astro dev",
