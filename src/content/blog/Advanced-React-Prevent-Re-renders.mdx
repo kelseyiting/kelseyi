@@ -1,0 +1,187 @@
+---
+heroImage: /src/assets/images/react.png
+category: Development
+description: >-
+  I came across this book Advanced React by Nadia Makarevich one day and decided to give it a try. It turns out to be such a wonderful read! This book is informative and contains lots of code examples to help wrap your head around complex ideas. I decided to write down some reading notes for future references.
+pubDate: 2024-11-01T16:00:00.000Z
+tags:
+  - React
+  - Performance
+title: 'Advanced React: Prevent Re-renders (Reading Note)'
+---
+
+I came across this book [Advanced React by Nadia Makarevich](https://www.advanced-react.com/) one day and decided to give it a try. It turns out to be such a wonderful read! This book is informative and contains lots of code examples to help wrap your head around complex ideas. I decided to write down some reading notes for future references.
+
+The book introduces some ways to prevent re-renders and how easily memoization can be messed up using React.memo.
+
+1. Move States Down
+
+   Say your boss wants to add a modal and a toggler on a page with some very slow components. Intuitively, one may code out something like this:
+
+   ```jsx
+   const Component = () => {
+   	const [isOpen, setIsOpen] = useState(false)
+   	return (
+   		<div>
+   			<VerySlowComponent />
+   			{isOpen && <Modal />}
+   			<Button onClick={setIsOpen(true)}>Open Modal</Button>
+   		<div>
+   	)
+   }
+   ```
+
+   This achieves what the boss needs, but performance wise the state is causing Component to re-render, and also re-render all its children recursively. Before you put a bunch of memo, useMemo, and useCallback, you may check if performance can be improved by composition.
+
+   ```jsx
+   const ModalWithButton = () => {
+   	const [isOpen, setIsOpen] = useState(false)
+   	return (
+   		<>
+   			{isOpen && <Modal />}
+   			<Button onClick={setIsOpen(true)}>Open Modal</Button>
+   		<>
+   	)
+   }
+
+   const Component = () => {
+   	return (
+   		<div>
+   			<VerySlowComponent />
+   			<ModalWithButton />
+   		<div>
+   	)
+   }
+   ```
+
+   Once you move modal-related states down to its own component, the unnecessary re-renders of Component caused by modal state changes are gone.
+
+2. Elements as Props
+
+   Next day, your boss wants to listen for scroll event of a page that has very slow components.
+
+   ```jsx
+   const Component = () => {
+   	const [scroll, setScroll] = useState(0)
+   	return (
+   		<div onScroll={({currentTarget})=>{setScroll(currentTarget.scrollTop)}}>
+   			<VerySlowComponent />
+   			<ALotOfVerySlowComponent />
+   		<div>
+   	)
+   }
+   ```
+
+   Again, adding it this way is very straightforward but can cause performance problem. Every time a user scrolls through the page, Component updates the scroll state which triggers re-renders to Component and all its children. This can also be tackled with composition.
+
+   ```jsx
+   const ContainerWithScroll = ({children}) => {
+   	const [scroll, setScroll] = useState(0)
+   	return (
+   		<div onScroll={({currentTarget})=>{setScroll(currentTarget.scrollTop)}}>
+   			{children}
+   		<div>
+   	)
+   }
+
+   const Component = () => {
+   	return (
+   		<ContainerWithScroll>
+   			<VerySlowComponent />
+   			<ALotOfVerySlowComponent />
+   		</ContainerWithScroll>
+   	)
+   }
+   ```
+
+   Because VerySlowComponent and ALotOfVerySlowComponent are created outside of ContainerWithScroll and passed in as props, whenever ContainerWithScroll re-renders due to scroll state updates, the children reference remains unchanged, thus React will not re-render those components. The same technique applies to any props, not just children.
+
+3. Memoization
+
+   If none of the above composition methods are viable, memoization comes in handy.
+
+   There are two major use cases:
+
+   1. Props are dependencies to hooks in downstream components
+
+   If props from parent are dependencies in children hooks, each time Parent re-renders causes children to re-render and thus re-run all hooks in children.
+
+   ```jsx
+   const Parent = () => {
+   	const onMount = useCallback(()=>{}, [])
+   	return <Child onMount={onMount} />
+   }
+
+   const Child = ({onMount}) => {
+   	useEffect(()=>{
+   		onMount()
+   	},[onMount])
+   	// The onMount function reference stays the same during parent re-renders, so useEffect won't be re-run.
+   	return ...
+   }
+   ```
+
+   2. A component is wrapped in React.memo
+
+   To make sure children skip re-renders when their props are unchanged, wrap the children component in React.memo, and make sure all non-primitives/non-constant props are memoized via useCallback and useMemo.
+
+   ```jsx
+   const MemoChild = memo(Child)
+
+   const Parent = () => {
+   	const onMount = useCallback(() => {}, [])
+   	// ✅ MemoChild won't re-render unless onMount function reference changes.
+   	return <MemoChild onMount={onMount} />
+   }
+   ```
+
+   However, there are some caveats when using React.memo. often times developers may overlook details and causes React.memo to not work as expected.
+
+   ```jsx
+   const MemoChild = memo(Child)
+   const Parent = () => {
+   	// ⛔ data prop is created anew everytime Parent re-renders! memo is now useless.
+   	return <MemoChild data={{ age: 10 }} />
+   }
+   ```
+
+   ```jsx
+   const MemoChild = memo(Child)
+   const Parent = () => {
+   	const { submit } = useForm()
+   	// ⛔ When submit is not a memoized function, memo is useless again!
+   	return <MemoChild onSubmit={submit} />
+   }
+   ```
+
+   ```jsx
+   const MemoChild = memo(Child)
+   const Parent = () => {
+   	// ⛔ children is a prop too, written this way children get re-created every re-render. Memo is agian, useless!
+   	return <MemoChild>
+   		<div>Lovely grandchild!</div>
+   	</MemoChild>
+   ```
+
+   ```jsx
+   const MemoChild = memo(Child)
+   const MemoParent = memo(Parent)
+
+   const Wrapper = () => {
+   	// ⛔ MemoParent's children props contain MemoChild, which gets re-created every Wrapper re-renders.
+   	return <MemoParent>
+   		<MemoChild />
+   	</MemoParent>
+   ```
+
+   To fix problems related to children, we need to make sure we memoize children element references, not just children component functions.
+
+   ```jsx
+   const MemoChild = memo(Child)
+   const MemoParent = memo(Parent)
+
+   const Wrapper = () => {
+   	const child = useMemo(() => <MemoChild />, [])
+   	return <MemoParent>{child}</MemoParent>
+   }
+   ```

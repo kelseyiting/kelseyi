@@ -15,15 +15,17 @@ tags:
 title: 'List Virtualization in React: A Deep Dive into react-window Source Code'
 ---
 
+I read an article that mentions List Virtualization as a technique to improve website performance, and I find it very intriguing. So I spent some time looking into a well-known list virtualization library in React and get some general concepts on how they implement it.
+
 List virtualization (also called Windowing) is a front-end performance optimization technique that renders only the visible list items in the viewport, rather than all items in the list. The benefit of a virtualized list is the reduced amount of DOM nodes to render, yielding faster load time and less memory used.
 
 ## Implement List Virtualization with Packages
 
 In React, there are several packages that help with List Virtualization:
 
-* [react-window](https://github.com/bvaughn/react-window)
-* [react-virtualized](https://github.com/bvaughn/react-virtualized)
-* [react-virtuoso](https://github.com/petyosi/react-virtuoso)
+- [react-window](https://github.com/bvaughn/react-window)
+- [react-virtualized](https://github.com/bvaughn/react-virtualized)
+- [react-virtuoso](https://github.com/petyosi/react-virtuoso)
 
 Both react-window and react-virtualizaed are developed by Brian Vaughn. [According to the author](https://github.com/bvaughn/react-window), the main difference is that react-window is a complete rewrite of react-virtualized. While react-window is smaller and faster, react-virtualized offers more functionalities. It is recommended by the author to use react-window and extend as you need.
 
@@ -39,11 +41,11 @@ From the above observation, a virtualized list should keep track of the containe
 
 ## The Trade-offs of List Virtualization
 
-1. Break some browser’s native functions
+- Break some browser’s native functions
 
-List virtualization breaks some of the browser's native functions, such as search and print. Since off-viewport content doesn't exist in the DOM, it can't be searched. A common fix is to create your own search functionality to enable searching the full list. For printing, additional work is also needed to print the entire list.
+List virtualization breaks some of the browser's native functions, such as search and print. Since off-viewport content doesn't exist in the DOM, it can't be searched. A common fix is to create your own search functionality to enable searching the full list. For printing, additional work is also needed to print the entire list
 
-1. SEO
+- SEO
 
 A virtualized list, like a page with infinite scroll, poses challenges for web crawlers to index content that doesn't load initially. If SEO is important for your list, refer to [Infinite Scroll Search-friendly Recommendations](https://developers.google.com/search/blog/2014/02/infinite-scroll-search-friendly) and adjust your components and API to improve SEO.
 
@@ -56,46 +58,38 @@ The main goal of this article is to gain a deeper understanding of how packages 
 First, let's look at the usage of a react-window VariableSizeList:
 
 ```javascript
-import React from 'react';
-import ReactDOM from 'react-dom';
-import { VariableSizeList as List } from 'react-window';
+import React from 'react'
+import ReactDOM from 'react-dom'
+import { VariableSizeList as List } from 'react-window'
 
-import './styles.css';
+import './styles.css'
 
 // These row heights are arbitrary.
 // Yours should be based on the content of the row.
-const rowSizes = new Array(1000)
-  .fill(true)
-  .map(() => 25 + Math.round(Math.random() * 50));
+const rowSizes = new Array(1000).fill(true).map(() => 25 + Math.round(Math.random() * 50))
 
-const getItemSize = index => rowSizes[index];
+const getItemSize = (index) => rowSizes[index]
 
 const Row = ({ index, style }) => (
-  <div className={index % 2 ? 'ListItemOdd' : 'ListItemEven'} style={style}>
-    Row {index}
-  </div>
-);
+	<div className={index % 2 ? 'ListItemOdd' : 'ListItemEven'} style={style}>
+		Row {index}
+	</div>
+)
 
 const Example = () => (
-  <List
-    className="List"
-    height={150}
-    itemCount={1000}
-    itemSize={getItemSize}
-    width={300}
-  >
-    {Row}
-  </List>
-);
+	<List className='List' height={150} itemCount={1000} itemSize={getItemSize} width={300}>
+		{Row}
+	</List>
+)
 
-ReactDOM.render(<Example />, document.getElementById('root'));
+ReactDOM.render(<Example />, document.getElementById('root'))
 ```
 
 The following List props are crucial for determining the correct scroll position and visible range of items:
 
-* height: The container's height
-* itemCount: The total number of items in the list
-* itemSize: A function that calculates item size based on the provided item index
+- height: The container's height
+- itemCount: The total number of items in the list
+- itemSize: A function that calculates item size based on the provided item index
 
 Play around with examples from the documentation to get a better idea.
 
@@ -216,15 +210,15 @@ getItemMetadata calculates the offset and size for each item. The item size is d
 
 For example, consider a list of three items with predefined sizes:
 
-* First Item:
-  * Size: 10
-  * Offset: 0 (starts at the top)
-* Second Item:
-  * Size: 20
-  * Offset: 10 (previous item’s size + previous item’s offset)
-* Third Item:
-  * Size: 15
-  * Offset: 30 (previous item’s size + previous item’s offset)
+- First Item:
+  - Size: 10
+  - Offset: 0 (starts at the top)
+- Second Item:
+  - Size: 20
+  - Offset: 10 (previous item’s size + previous item’s offset)
+- Third Item:
+  - Size: 15
+  - Offset: 30 (previous item’s size + previous item’s offset)
 
 ItemMetadataMap stores each item's information (size and offset), and lastMeasuredIndex records the index of the last measured item. If an item has already been measured before, the information will be returned directly from ItemMetadataMap. If not, the measurement will start from lastMeasuredIndex and continue up to the given item index.
 

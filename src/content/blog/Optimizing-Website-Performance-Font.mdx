@@ -1,0 +1,76 @@
+---
+heroImage: /src/assets/images/img.png
+category: Development
+description: >-
+  Fonts are often large and take a while to load. Some browsers hide text until
+  the intended font is downloaded, which could potentially delay First
+  Contentful Print (FCP).  Font swapping also poses potential layout shifts when
+  the fallback font and the downlaoded font take up difference space, which
+  affects Cumulative Layout Shift (CLS).
+pubDate: 2024-10-02T16:00:00.000Z
+tags:
+  - performance
+title: 'Optimizing Website Performance: Font'
+---
+
+[Web.dev](https://web.dev/learn/performance) offers well-documented tips and suggestions for improving website performance in various areas. I've taken notes on these insights, and today we'll look into some common strategies for optimizing font loading.
+
+- font-display
+
+  The default value is `block`. If you do not want fonts to block rendering of texts, use the value `swap`, which tells the broswer to show text immediately and swap with the intended font once it is loaded. Beware that even though swap gives users a faster FCP, swapping between fonts could still lead to increased CLS.
+
+  The `optional` value offers a balanced approach. When using `optional`, the browser briefly delays rendering the text to give the intended font a chance to load. If the font doesn’t finish downloading within that short time, a fallback font is displayed instead. Unlike other values, the text won’t switch to the intended font even if it eventually loads. However, on subsequent page visits, since the font likely finishes downloading in the background, the intended font will then be used.
+
+- rel=”preload”, ref=”preconnect”
+
+  `preload` instructs the browser to prioritize the download of resources that you will need very soon so that the page’s render is less likely to be blocked. `preload`is especially helpful for downloads referenced in external resources since stylesheets. However, there are some caveats when using `preload`, see [Best practices for fonts](https://web.dev/articles/font-best-practices#be_cautious_when_using_preload_to_load_fonts).
+
+  `preconnect` establishes early connections to third-party origins so that the download could start early.
+
+```jsx
+  <link
+  	rel="preload"
+    href="fonts/cicle_fina-webfont.woff2"
+    as="font"
+    type="font/woff2"
+    crossorigin />
+
+  <link
+  	rel="preconnect"
+  	href="https://fonts.gstatic.com"
+  	crossorigin />
+```
+
+- WOFF2
+
+  The new [WOFF 2.0](https://groups.google.com/a/chromium.org/forum/#!topic/chromium-dev/j27Ou4RtvQI/discussion) Web Font compression format offers a 30% average gain over WOFF 1.0 (up to 50%+ in some cases).
+
+  (Source: [https://blog.chromium.org/2014/05/chrome-36-beta-elementanimate-html.html](https://blog.chromium.org/2014/05/chrome-36-beta-elementanimate-html.html))
+
+  WOFF and WOFF2 are common font file types used in websites. WOFF2 provides better compression and is smaller in size and thus takes up lower network bandwidth to transfer. WOFF2 is widely supported across major browsers. If you need to support ancient browsers, you may consider using WOFF2 in font-face and WOFF as a fallback .
+
+- Font Subsetting
+
+  You might not need all those letters, symbols, numbers, etc… in every font your website uses, and it would be good to minify the font file to reduce the network bandwidth. That’s when subsetting the font comes in handy. There are a lot of online tools for font subsetting. You can also utilize `unicode-range` with subsetted fonts to inform the broswer what font it should use when it encounters characters within the specific unicode-range.
+
+```jsx
+  @font-face {
+    font-family: "Ampersand";
+    src: local("Times New Roman");
+    unicode-range: U+26;
+  }
+```
+
+- size-adjust
+
+```jsx
+  @font-face {
+    font-family: 'Adjusted Arial';
+    size-adjust: 86%;
+    src: local(Arial);
+  }
+```
+
+When font swaps take place, layout shifts may happen when the actual sizes of the fonts are different. For example, when two fonts are given the same font-size:18px, their actual height may be different. You can utilize [this calculator](https://deploy-preview-15--upbeat-shirley-608546.netlify.app/perfect-ish-font-fallback/) to get correct ratio for your fonts.
+
+For more details on how to optimize your website performance, I highly recommend that you check out the section on performance in [Web.dev](https://web.dev/learn/performance).

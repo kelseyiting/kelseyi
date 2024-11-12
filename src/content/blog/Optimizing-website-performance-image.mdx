@@ -1,0 +1,168 @@
+---
+heroImage: /src/assets/images/image+(7).png
+category: Development
+description: >-
+  Images often have large file sizes, which can significantly impact performance
+  and consume more resources. In this section we will introduce common
+  techniques for handling images with performance in mind.
+pubDate: 2024-09-10T16:00:00.000Z
+tags:
+  - Performance
+title: 'Optimizing Website Performances: Image'
+---
+
+[Web.dev](https://web.dev/learn/performance) offers well-documented tips and suggestions for improving website performance in various areas. I've taken notes on these insights, and today we'll look into some common strategies for optimizing images.
+Images often have large file sizes, which can significantly impact performance and consume more resources. In this section, we will introduce common techniques for handling images with performance in mind.
+
+- **`loading=”lazy”`**
+
+  There are many third-party lazy loading libraries, but most browsers support this natively and no external libraries are needed. This attribute defers the loading of images that are off-screen. Do not lazy load images that are likely be in the viewport on load.
+
+```jsx
+<img loading='lazy' src='image.jpg' alt='...' />
+```
+
+- **specify `width` and `height`**
+
+  To avoid layout shifts, set the image dimension so that the browser reserves enough space before the image is loaded so the layout won’t be affected.
+
+```jsx
+  <img src="image.png" loading="lazy" alt="…" width="200" height="200">
+```
+
+- **`srcset` and `sizes` in `img`**
+
+  The `srcset` attribute: a file list with its **intrinsic sizes** to let the browser choose the most ideal one to request. You need to specify each file’s intrinsic width with either `w` , a width descriptor, or`x`, a pixel density descriptor. Note that mixing `w` with `x` together in the `srcset` [is incorrect](https://html.spec.whatwg.org/multipage/images.html#srcset-attributes).
+
+  The `sizes` attribute: different spaces the image takes up under different media conditions. Note that sizes can be any relative or absolute length value like `vw` and `px` but [not percentage value](https://html.spec.whatwg.org/multipage/images.html#sizes-attributes) `%`. Also when `srcset` is absent or not using a width descriptor, `sizes` will have no effect.
+
+  If an element has a [sizes attribute](https://html.spec.whatwg.org/multipage/images.html#sizes-attribute) present, all [image candidate strings](https://html.spec.whatwg.org/multipage/images.html#image-candidate-string) for that element must have the [width descriptor](https://html.spec.whatwg.org/multipage/images.html#width-descriptor) specified. - [HTML Standard](https://html.spec.whatwg.org/multipage/images.html)
+
+  The browser will evaluate the media conditions in the \*\*`sizes`\*\*attribute in order (left to right) and find the first matched condition and its slot size. Then, the browser will choose the first image whose size is equal to or larger than the slot size from `srcset`. See following examples:
+
+  **Different display size**
+
+```jsx
+  <img
+    src="image-medium.jpg"
+    srcset="
+      image-small.jpg 600w,
+      image-medium.jpg 1200w,
+      image-large.jpg 1800w"
+    sizes="
+      (max-width: 600px) 100vw,
+      (max-width: 1200px) 50vw,
+      33vw"
+    alt="A responsive image example">
+```
+
+In the above example, if the media condition (max-width: 600px) 100vw is matched, 100vw is used to look up the `srcset` to find the one that is equal to or that is immediate bigger than 100vw.
+
+**Different display resolution**
+
+```jsx
+  <img
+    src="image-medium.jpg"
+    srcset="
+      image-small.jpg 1x,
+      image-medium-2x.jpg 2x,
+      image-large-3x.jpg 3x"
+    alt="A responsive image example with different resolutions">
+
+```
+
+Displays with the same size may have different resolutions. If you want images to look sharp on high resolution displays, use a pixel density descriptor`x`. For example, a device A with DPR=1 and a device B with DPR=2, serve B with an image with higher resolution to provide better details to viewers.
+
+For browsers that do not support these attributes it will just ignore them and serve from **`src`**.
+
+- **`picture` and `source` elements**
+
+```jsx
+  <picture>
+    <source
+      media="(min-resolution: 2dppx)"
+      type="image/webp"
+      srcset="image-high-res.webp">
+
+    <source
+      media="(min-resolution: 2dppx)"
+      type="image/jpeg"
+      srcset="image-high-res.jpg">
+
+    <source
+      media="(max-width: 600px)"
+      type="image/webp"
+      srcset="image-small.webp">
+
+
+    <source
+      media="(max-width: 600px)"
+      type="image/jpeg"
+      srcset="image-small.jpg">
+
+
+    <source
+      media="(min-width: 601px) and (max-width: 1200px)"
+      type="image/webp"
+      srcset="image-medium.webp">
+
+
+    <source
+      media="(min-width: 601px) and (max-width: 1200px)"
+      type="image/jpeg"
+      srcset="image-medium.jpg">
+
+    <img
+      src="fallback-image.jpg"
+      alt="A responsive image example">
+  </picture>
+```
+
+`picture` and `source` allow more control over what should be shown. You can specify the media type and let the browser only serves the type it supports. Or when you want to serve different images (like cropped ones for smaller displays) based on different media condition. In order for `picture` to work, it must contain only one `img` element and zero or multiple `source` elements.
+
+`<picture>` allows media queries within `<source>` elements, enabling different images based on screen width, orientation, or other conditions. `source` serves as alternatives to `img` for the browser to choose from. `type` enables serving images based on browser support; whereas `srcset` and `sizes` in `<img>` don’t support media queries directly; they only control which image to use based on size and resolution. Simply put,`picture` and `source`are more like **commands** and `img` with `srcset` and `sizes` is more like **suggestions** to browsers.
+
+- **`preload` , `prefetch`, and `preconnect`**
+
+  `preload` and `prefetch` lets the browsers discover and fetch resources sooner. It especially suits for resources that may otherwise be discovered later by the browsers, such as resources loaded from scripts. Browsers will download and cache resources so that resources would be ready by the time the browser needs them. `Preload` suits best for resources that are needed immediately. Notice how the console will throws warning if you `preload` a resource that is not used any time soon.
+
+  _The resource [http://localhost:4321/fonts/Manrope-Bold.woff2](http://localhost:4321/fonts/Manrope-Bold.woff2) was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally._
+
+  `prefetch` suits best for resources that will be needed in subsequent requests and you would like to cache them ahead of time.
+
+  Prefetching takes place at the ['Lowest' priority](https://docs.google.com/document/d/1bCDuq9H1ih9iNjgzyAL0gpwNFiEP4TZS-YLRp_RuMlc/edit), so prefetched resources do not compete for bandwidth with the resources required in the current page. - [web.dev](https://web.dev/articles/link-prefetch)
+
+  `preconnect` helps establish early connection with third-party resources so when the resources are needed the connection would already be created.
+
+- **`fetchpriority`**
+
+  `fetchpriority` gives you more control over the loading priority of assets. With value set as `high`, the assets have higher priority relative to other assets of the same types. You can utilize this attribute for images that are the Longest Contentful Paint (LCP) element or for images in carousels that do not show in the viewport yet.
+
+  If you do not want preload resources to compete with critical resources, you can set a low priority for preloaded resources.
+
+```jsx
+  <img src="/images/in_viewport_important.svg" fetchpriority="high" alt="I'm an important image!">
+  <img src="/images/in_viewport_but_not_important.svg" fetchpriority="low" alt="I'm an unimportant image!">
+```
+
+`fetchpriority` differs from `prefetch` in that even if preloaded, the image might still get **low priority** in the browser’s fetching system, because the image might be pushed back by other early low-priority resources. That’s when setting `fetchpriority` comes in handy
+
+- **webP**
+
+  WebP is a modern image format developed by Google that provides lossless and lossy compression. The main purpose of webp is to reduce image sizes to make loading time faster. Thus webp serves as an excellent replacement for jpg, png, and gif.
+
+  WebP lossless images are [26% smaller](https://developers.google.com/speed/webp/docs/webp_lossless_alpha_study#results) in size compared to PNGs. WebP lossy images are [25-34% smaller](https://developers.google.com/speed/webp/docs/webp_study) than comparable JPEG images at equivalent [SSIM](https://en.wikipedia.org/wiki/Structural_similarity) quality index. - [Google Developers](https://developers.google.com/speed/webp?hl=zh-tw)
+
+  The main drawback of webp is that even though webp is widely supported, older devices and software may not support it. You can utilize `<picture>` to add a fallback to browsers that do not support webp format.
+
+- **CDN**
+
+  CDNs are network of distributed servers placed around the world in order to deliver assets such as texts, images, and videos. They sit closer to clients and thus deliver contents faster. Image CDNs are highly effective at optimizing images. They handle tasks such as adjusting image size, pixel density, format, cache, compression and so many more for you. Take [Cloudflare](https://developers.cloudflare.com/images/transform-images/transform-via-url/) for example, it supports powerful features such as image transformation through URL:
+
+```jsx
+  https://domain.com/image.jpg?width=300&height=200&fit=cover&format=webp&quality=80
+```
+
+However, image CDNs could be costly, make sure to set a budget for your website.
+
+For more details on how to optimize your website performance, I highly recommend that you check out the section on performance in [Web.dev](https://web.dev/learn/performance).
