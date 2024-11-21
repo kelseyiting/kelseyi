@@ -21,14 +21,7 @@ const { posts, FirstBig = false } = Astro.props
 		posts.map(async (post) => {
 			const { remarkPluginFrontmatter } = await post.render()
 
-			return (
-				<PostCard
-					id={post.id}
-					data={post.data}
-					slug={post.slug}
-					readTime={remarkPluginFrontmatter.minutesRead}
-				/>
-			)
+			return <PostCard id={post.id} data={post.data} slug={post.slug} />
 		})
 	}
 </section>

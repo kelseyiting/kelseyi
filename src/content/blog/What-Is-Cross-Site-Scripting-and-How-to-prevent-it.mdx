@@ -1,0 +1,164 @@
+---
+heroImage: /src/assets/images/web-security.jpg
+category: Development
+description: >-
+  Cross Site Scripting (XSS) happens when attackers are able to inject scripts into a website through its vulnerabilities. 
+  There are three types of XSS attacks. 
+  Today we will look into simple examples to get a basic idea of how these attacks work and ways to mitigate them.
+pubDate: 2024-11-21T16:00:00.000Z
+tags:
+  - JavaScript
+  - Security
+title: What Is Cross Site Scripting (XSS) and How to Prevent It
+---
+
+Cross Site Scripting (XSS) happens when attackers are able to inject scripts into a website through its vulnerabilities. There are three types of XSS attacks. Today we will look into simple examples to get a basic idea of how these attacks work and ways to mitigate them.
+
+## Stored XSS
+
+Stored XSS happens when malicious scripts are from the website’s database.
+
+For example, hackers input maliciously through comments or user profile, which will get stored in a database, causing subsequent HTTP responses to serve the malicious code.
+
+Assume that a website does not conduct any data handling, and users make a request to post comments:
+
+```json
+// request body
+{
+	"comment": "<script>alert('hi')</script>"
+}
+```
+
+And the comment will be rendered directly like this:
+
+```jsx
+<p>
+	<script>alert('hi')</script>
+</p>
+```
+
+Each time a user visits pages containing the comment, the malicious code gets run. Alert will be shown on the screen.
+
+## Reflected XSS
+
+Reflected XSS happens when malicious scripts are from HTTP requests.
+
+For example, a website’s data may be queried through user input and URL params, such as blog posts:
+
+```jsx
+https://kelseyi.com/posts?search=<script>alert('hi')</script>
+```
+
+The result page renders the input as-is, causing the malicious code to be run:
+
+```jsx
+<p>
+	You searched for: <script>alert('hi')</script>
+</p>
+```
+
+Reflected XSS can also utilize open redirects:
+
+```jsx
+// redirect to malicious sites
+https://kelseyi.com/login?redirect=https://hacker.com
+
+// redirect to malicious sites with sensitive information
+https://kelseyi.com/?token=xyz?redirect=https://hacker.com
+```
+
+## DOM XSS
+
+DOM XSS happens when malicious actions are conducted through exploiting client-side vulnerability.
+
+What distinguishes DOM XSS from Reflected XSS relies on **where the processing happens.** DOM XSS is entirely client-side, whereas Reflected XSS happens when servers **reflect** the malicious code back to clients in HTTP responses.
+
+The ideas are similar, clients scripts take user input and directly renders or runs it.
+
+```jsx
+// https://kelseyi.com/?input=<script>alert('hi')</script>
+
+const params = new URL(document.URL).searchParams
+document.getElementById('output').innerHTML = params.get('input')
+```
+
+```jsx
+// https://kelseyi.com/?input=alert('hi')
+
+const params = new URL(document.URL).searchParams
+eval(params.get('input'))
+```
+
+```jsx
+// https://kelseyi.com/?redirect=javascript:alert('XSS')
+
+const params = new URL(document.URL).searchParams
+window.location.href = params.get('redirect')
+```
+
+The alert calls in all examples act like a placeholder for any malicious scripts, such as making requests to a malicious endpoint with legit cookies, or exploiting redirects to route you to a phishing site that looks identical to the real one, stealing credentials you provide.
+
+## How to prevent XSS attacks
+
+Although it is hard to detect every possible vulnerability in your website, there are some general guidance to protect your site from XSS attacks.
+
+1. Validate and sanitize user input
+
+   Validate user input to match certain required patterns and sanitize. For example, URL input should contain only valid protocols like HTTP/HTTPS instead of javascript or data. Sanitization means removing or modifying input that is potentially harmful. Take HTML content for example, there are libraries such as [DOMpurify](https://github.com/cure53/DOMPurify) that helps in data sanitization.
+
+   With validation and sanitization, you effectively prevent users from inputting arbitrarily everything to your website or database.
+
+2. Setting Content Security Policy
+
+   Content-Security-Policy is a http header response value that can be set to control resources that are allowed to load. It mainly helps with reducing the risk of XSS attacks, since hackers would not be able to load malicious content in ways that are not allowed by CSP.
+
+   ```jsx
+   // allow resources like scripts, styles and images from the same domain by defualt
+   default-src 'self';
+
+   // allow scripts only from the same domain
+   script-src 'self'
+
+   // allow images only from HTTPS and under the same domain or from cdn.com
+   img-src 'self' https://cdn.com https:;
+   ```
+
+   Although it provides great control over the loading of resources, maintaining a CSP header can be troublesome, as you can imagine when more and more third-party services are used, the list must be constantly updated to keep up-to-date with all the services. Check out websites from big companies like Amazon, Agoda, Netflix and more. You may find that not many of them put much effort in maintaining CSP header.
+
+3. Setting Cookies
+
+   Cookies often contain session identifiers or tokens that represent different users. If these cookies are stolen or sent along to unintended parties, hackers can use those cookies to perform malicious actions on the victim’s behalf.
+
+   When setting cookies, there are attributes that prevent cookies from being easily exposed, reducing damages caused by attacks.
+
+   `HttpOnly`
+
+   Prevent cookies from being accessible via JavaScript. You will not be able to use `document.cookie` to access HttpOnly cookies.
+
+   `Secure`
+
+   Only sent cookies over HTTPS connections to reduce the risk of cookies being intercepted over less secure protocols like HTTP.
+
+   `SameSite`
+
+   Prevent cookies from being sent along in cross-site requests. But sometimes being too strict on it will cause bad user experience.
+
+   For example, `Strict` only allow cookies to be sent under the exact same domain, not even subdomains, meaning cookies for [A.com](http://A.com) will not be sent with requests for [blog.A.com](http://blog.A.com), and if A.com is visited through links from other website, like [B.com](http://B.com), the cookies with `Strict` will not be sent either. If you need to send cookies to subdomains or via top-level navigation, it is more suitable to use `Lax`.
+
+   ```jsx
+   // send the cookie in same-domain requests
+   SameSite = Strict
+
+   // also send the cookie when having top-level navigation (like clicking a link, enter a new url, redirect via js...)
+   SameSite = Lax
+
+   // also send the cookie in cross-site requests
+   // use with 'secure' to make sure the cookie is sent safely
+   SameSite = None
+   ```
+
+References
+
+https://portswigger.net/web-security/cross-site-scripting
+
+https://web.dev/articles/strict-csp
