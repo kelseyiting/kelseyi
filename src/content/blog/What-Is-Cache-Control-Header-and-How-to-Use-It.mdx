@@ -1,0 +1,151 @@
+---
+heroImage: /src/assets/images/browser-cache.png
+category: Development
+description: >-
+  Caching plays a crucial role in optimizing performance. 
+  By setting cache control headers for your resources, you can define specific caching policies for browsers to follow. Effective caching eliminates the need for browsers to re-fetch resources that are not modified, reducing bandwidth usage and improving load speed.
+pubDate: 2024-11-22T16:00:00.000Z
+tags:
+  - Performance
+  - HTTP Header
+title: What is the Cache-Control Header and How to Use It
+---
+
+Caching plays a crucial role in optimizing performance. By setting cache control headers for your resources, you can define specific caching policies for browsers to follow. Effective caching eliminates the need for browsers to re-fetch resources that are not modified, reducing bandwidth usage and improving load speed.
+
+There are quite a few values that we can set to the cache-control header, so I made this cheat sheet for future references.
+
+## Is cacheable?
+
+- **No-Store**
+  Do not store in cache at all. Always fetch from servers.
+  Best for sensitive data that should not be cached or should be fresh for every request, such as information about banking and payment.
+- **No-Cache**
+  Cacheable, but cannot be served directly from the cache without checking with the origin server to ensure the content is still valid.
+  Best for data that can be cached but always checked for updates before use.
+
+## Who can store?
+
+- **Public**
+  Can be stored by any caching mechanism, like browsers, CDNs, proxies and so on.
+  ```jsx
+  cache-control: public
+  ```
+- **Private**
+  Can only be stored on the clients. Do not store the resource on any proxies or intermediary shared cache.
+  ```jsx
+  cache-control: private
+  ```
+
+## For how long?
+
+- **immutable**
+  The resource will not change during the lifetime of the cache.
+  Because browsers will send requests to revalidate cached resources, setting a resource cache to be immutable tells browsers the resource will not change and there is no need to make requests for revalidation.
+  This behavior conflicts with No-Cache, so do not use them together.
+  ```jsx
+  Cache-Control: public, max-age=604800, immutable
+  ```
+- **Expires**
+  The exact time the cached resource will expire. Beware that if users change their system time, caching might behave unexpectedly.
+  ```jsx
+  Expires: Wed, 21 Nov 2024 07:28:00 GMT
+  ```
+- **Max-Age**
+  The lifetime of the cached resource. Unlike Expires, Max-Age represents a time span and is independent of user system time. The time is in seconds and is relative to the time the request is made. If both Expires and Max-Age are set, Max-Age will have precedence.
+  ```jsx
+  cache-control: public, max-age=630244545
+  ```
+- **s-maxage**
+  This is specific for shared caches such as CDNs, indicating how long the resource can be served from those caches. This directive will overwrite Max-Age only in shared caches if both have been set, whereas clients will only respect Max-Age values.
+
+## Is stale?
+
+- **ETag** (with **If-None-Match** by clients)
+
+  ETag is a hash or unique identifier generated from the resource content. Upon the first request for a resource, servers will send the resource along with an ETag value. For consequent requests, clients will request with the given ETag set in `If-None-Match` directive, letting the servers compare the ETags from users and servers, and send out a new copy when ETags do not match.
+
+  ```jsx
+  // initial request
+  GET /image.jpg HTTP/1.1
+  Host: haha.com
+
+  // initial response
+  HTTP/1.1 200 OK
+  Content-Type: image/jpeg
+  ETag: "abc123"
+
+  // consequent requests
+  GET /image.jpg HTTP/1.1
+  Host: haha.com
+  If-None-Match: "abc123"
+
+  // consequent responses
+
+  // resource not changed
+  HTTP/1.1 304 Not Modified
+  // resource changed
+  HTTP/1.1 200 OK
+  Content-Type: image/jpeg
+  ETag: "def456"
+  ```
+
+- **Last-Modified** (with **If-Modified-Since** by clients)
+  `Last-Modified` indicates the last time a resource is modified. The clients receive the `Last-Modified` value on the initial request for a resource, and will add it to the If-Modified-Since header in subsequent requests. Servers will then be able to compare the timestamps on servers and clients to determine if clients need new copies.
+
+  ```jsx
+  // initial request
+  GET /image.jpg HTTP/1.1
+  Host: haha.com
+
+  // initial response
+  HTTP/1.1 200 OK
+  Content-Type: image/jpeg
+  Last-Modified: Mon, 01 Nov 2023 12:00:00 GMT
+
+  // subsequent requests
+  GET /image.jpg HTTP/1.1
+  Host: haha.com
+  If-Modified-Since: Mon, 01 Nov 2023 12:00:00 GMT
+
+  // subsequent responses
+
+  // resource not changed
+  HTTP/1.1 304 Not Modified
+
+  // resources changed
+  HTTP/1.1 200 OK
+  Content-Type: image/jpeg
+  Last-Modified: Tue, 02 Nov 2023 12:00:00 GMT
+
+  ```
+
+## How to Handle Stale Resources?
+
+- **stale-while-revalidate**
+  Serve stale content while revalidating. If a resource is stale and modified, stale resources will be served by the browser while a new copy is fetching from the backgrond.
+  ```jsx
+  Cache-Control: max-age=3600, stale-while-revalidate=120
+  ```
+  The above value means that If a resource becomes stale (after 3600 seconds), it will still be used for the next 120 seconds while in the background the browser will make a revalidation request to refresh the cache.
+- **must-revalidate**
+  Stale resources must be revalidated before being served to the clients, ensuring clients will not see any stale content.
+  ```jsx
+  Cache-Control: max-age=3600, must-revalidate
+  ```
+  The above value means that once the resource becomes stale, it must be revalidated before being served.
+- **proxy-revalidate**
+  This behaves similarly as must-revalidate, but it is only for shared caches. It instructs the shared caches to validate stale resources before serving them to the clients.
+
+  ```jsx
+  Cache-Control: max-age=3600, proxy-revalidate
+
+  ```
+
+References
+
+https://www.cloudflare.com/learning/cdn/glossary/what-is-cache-control/
+
+https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control
+
+https://web.dev/articles/stale-while-revalidate
