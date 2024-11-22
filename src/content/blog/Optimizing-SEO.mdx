@@ -1,0 +1,126 @@
+---
+heroImage: /src/assets/images/seo.png
+category: Development
+description: >-
+  There are many different aspects to consider in order to improve a website’s SEO. 
+  So I spent quite some time researching and make this checklist to make optimizing SEO faster and easier in the future.
+pubDate: 2024-10-22T16:00:00.000Z
+tags:
+  - SEO
+title: Make Your Website Easily Found by SEO
+---
+
+There are many different aspects to consider in order to improve a website’s SEO. So I spent quite some time researching and make this checklist to make optimizing SEO faster and easier in the future.
+
+## How to do SEO
+
+1. URL
+
+   To better help search engines identify concepts in your urls, there are some suggestions provided by Google:
+
+   - Use descriptive and readable urls
+     ```jsx
+     ✅ https://kelseyi.com/posts/how-i-met-your-mother
+     ⛔ https://kelseyi.com/posts/gegjriogj9040283gr
+     ```
+   - Use hyphens not underscores when concatenating words
+     ```jsx
+     ✅ https://kelseyi.com/posts/how-i-met-your-mother
+     ⛔ https://kelseyi.com/posts/how_i_met_your_mother
+     ⛔ https://kelseyi.com/posts/howimetyourmother
+     ```
+   - Block urls with irrelevant params to search engine
+     Urls with irrelevant params to crawlers may cause crawlers to crawl many unnecessary pages that actually contain similar or identical results. You may either disallow those urls to be crawled or use canonical link tag to let crawlers know the preferred version of the url.
+     ```jsx
+     ⛔ https://kelseyi.com/posts?sort=publish_date&category=10
+     ⛔ https://kelseyi.com/posts?refererId=123456&trackerId=7891011
+     ```
+   - Use UTF-8 encoding for non-ASCII characters
+     ```jsx
+     ✅ https://kelseyi.com/posts/%E5%BE%9E%E5%85%A5%E9%96%80%E5%88%B0%E6%94%BE%E6%A3%84
+     ⛔ https://kelseyi.com/posts/從入門到放棄
+     ```
+
+2. Meta Tags
+
+   `description` A short summary of what the page is about.
+
+   `robots` How the page should be indexed and served in search result.
+
+   `viewport`Setting viewport width and initial scales to match needs by devices.
+
+   `content-type` and `charset` Specify the document content type and character encoding used by the document.
+
+   ```jsx
+   // for older browsers
+   <meta http-equiv="Content-Type" content="...; charset=...">
+   // for modern browsers
+   <meta charset="...">
+   ```
+
+   OG tags help with how shared urls look like on social platforms.
+   `og:title`
+   `og:description`
+   `og:image`
+
+   …and more attributes to set to help make your shared resource more appealing to click.
+
+3. JSON-LD
+
+   JSON-LD is a type of data structured in a way that is easy for humans and machines to understand. It helps search engines to better identify your page information, especially if your page falls into explicit types like products, recipes, blog posts and more. For a product page, you may follow the product schema defined in [Schema.org](http://Schema.org) and [test the result on google](https://developers.google.com/search/docs/appearance/structured-data).
+
+4. Sitemap
+
+   Sitemaps help crawlers crawl your website more efficicently. For large site maps that exceed size limits (50MB), split them into smaller site maps and use an index file to include all the split site maps. This way, you can submit all sitemaps at once.
+
+   For example, [this is the sitemap index in Costco](https://www.costco.com/sitemap_lw_index.xml). It lists paths to those split sitemaps and if you navigate to those sitemaps you will see a bunch of links and information to products on Costco website.
+
+   You can check out [a protocol list from sitemaps.org](https://www.sitemaps.org/protocol.html) to see all available values for a sitemap.
+
+5. Robots.txt
+
+   A file that allows you to specify file paths that can or cannot be crawled.
+
+   `user-agent` specifies which bot the rules should be applied to.
+
+   `Disallow` specifies paths under which files cannot be crawled.
+
+   `Allow` specifies paths under disallowed directories that are crawlable instead.
+
+   `Sitemap` specifies the URL to a sitemap
+
+   ```jsx
+   // robots.txt from iherb.com
+   user-agent: *
+   Allow: /tr/list
+   Allow: /tr/cb
+   Disallow: /tr/
+   ...
+   Sitemap: https://www.iherb.com/sitemap_index.xml
+   ```
+
+   The main difference between a robots.txt file and a sitemap is that robots.txt tells crawlers what **can** or **cannot** be crawled and sitemaps tells crawlers what **should** be crawled. But a robots.txt doesn’t fully prevent a page from being indexed, if crawlers find the page by other means, so be sure to still add `<meta name="robots" content="noindex, nofollow">` .
+
+6. Link Tags
+
+   `rel="canonical"` tells crawlers to treat the provided url as the main version. This is useful when you have multiple variants of urls (e.g. with many params) but you only want the main version to be served in search result.
+
+   ```jsx
+   <link rel='canonical' href='https://keseyi.com/product' />
+   ```
+
+   `rel="alternate"` tells crawlers the page has an alternate version. For example, set different versions through `media` for mobile or `hreflang` for different languages/regions.
+
+   ```jsx
+   <link rel='alternate' hreflang='en' href='https://keylseyi.com/en-page' />
+   ```
+
+References:
+
+https://developers.google.com/search/docs/crawling-indexing/url-structure
+
+https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview
+
+https://developers.google.com/search/docs/crawling-indexing/robots/intro
+
+https://developers.facebook.com/docs/sharing/webmasters/
