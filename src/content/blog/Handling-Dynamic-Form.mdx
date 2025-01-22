@@ -1,0 +1,254 @@
+---
+heroImage: /src/assets/images/dynamic-form.png
+category: Development
+description: >-
+  At work I was assigned a task to handle dynamic form elements with react-hook-form. The trickiest part is that the form could be deeply nested without a limitation on the total number of layers, and binding deeply nested fields to react-hook-form is a hard work, so I ended up adapting an approach that makes binding easier and formats the result on submit.
+pubDate: 2025-01-22T16:00:00.000Z
+tags:
+  - React
+  - react-hook-form
+title: 'Handle Dynamic Form with react-hook-form'
+---
+
+At work I was assigned a task to handle dynamic form elements with react-hook-form. The trickiest part is that the form could be deeply nested without a limitation on the total number of layers, and binding deeply nested fields to react-hook-form is a hard work, so I ended up adapting an approach that makes binding easier and formats the result on submit.
+
+(All the following code and examples are conceptual, not the actual code in use.)
+
+## The Problem
+
+Render form elements based on the given format.
+
+```jsx
+;[
+	{
+		fieldId: 'identification_type',
+		fieldName: '證件類型',
+		fieldType: 'choose-one',
+		isRequire: true,
+		description: '請選擇證件類型',
+		options: [
+			{
+				optionId: 'identification_info_for_passport',
+				optionName: '身份證',
+				optionType: 'tile',
+				optionDescription: '',
+				optionRequired: false,
+				options: [
+					{
+						optionId: 'id_for_passport',
+						optionName: '身份證字號',
+						optionType: 'string',
+						optionDescription: '請填寫身份證字號',
+						optionRequired: true
+					},
+					{
+						optionId: 'date_issued_for_passport',
+						optionName: '簽發日期',
+						optionType: 'date',
+						optionDescription: '請填寫簽發日期',
+						optionRequired: true
+					}
+				]
+			},
+			{
+				optionId: 'identification_info_for_passport1',
+				optionName: '護照',
+				optionType: 'tile',
+				optionDescription: '',
+				optionRequired: false,
+				options: [
+					{
+						optionId: 'id_for_passport',
+						optionName: '護照號碼',
+						optionType: 'string',
+						optionDescription: '請填寫護照號碼',
+						optionRequired: true
+					},
+					{
+						optionId: 'date_issued_for_passport',
+						optionName: '簽發日期',
+						optionType: 'date',
+						optionDescription: '請填寫簽發日期',
+						optionRequired: true
+					}
+				]
+			}
+		]
+	}
+]
+```
+
+Please note:
+
+- Fields may be **optional**.
+- Fields may be **deeply nested**. One selected field may generate other sub fields, and so on.
+- Fields may need **validation**, such as not empty, numbers only or any specific patterns.
+- The form can be **partially cleared**.
+- Support **multiple field types**, including text, date, time, single or multiple select, multiplexer (select + text), tile and so on.
+
+When users submit, the payload format should look like:
+
+```jsx
+;[
+	{
+		fieldId: 'identification_type',
+		content: '',
+		selecteds: [
+			{
+				fieldId: 'identification_info_for_passport1',
+				content: '',
+				selecteds: [
+					{
+						fieldId: 'id_for_passport',
+						content: 'Q123456789',
+						selecteds: []
+					},
+					{
+						fieldId: 'date_issued_for_passport',
+						content: '2024-05-31',
+						selecteds: []
+					}
+				]
+			}
+		]
+	}
+]
+```
+
+## The Approach
+
+- Recursively render elements.
+
+```jsx
+const FormElement = ({type, id, description, options}) => {
+	const watchValue = useWatch({ name: id })
+
+	if(type === 'choose-one'){
+		return <>
+			<Controller
+	        control={control}
+	        name={id}
+	        render={({ field: { onChange, onBlur, value } }) => (
+	          <Select
+	            placeholder={description}
+	            onBlur={onBlur}
+	            onChange={onChange}
+	            value={value}
+	            options={options}
+	          />
+	        )}
+	      />
+	      {
+		      options.map((option)=>{
+					  if(option.id === watchValue){
+						  return <FormElement type={option.type} id={`${id}>${option.id}`} description={option.description} options={option.options}/>
+					  }
+						return null
+		      })
+	      }
+   </>
+	}
+	...
+}
+```
+
+- Unregister fields when elements unmount, keeping UI in sync with the form state in react-hook-form.
+
+```jsx
+const { control } = useForm({ shouldUnregister: true })
+```
+
+- Use full path as key. This is the crucial part of the approach. Flatten out the key of each field helps avoid id collision and bind input easily to react-hook-form.
+
+```jsx
+  {
+    'identification_type': { 'id': 'identification_info_for_passport1' },
+    'identification_type>identification_info_for_passport1>id_for_passport': { 'value': 'Q123456789' },
+    'identification_type>identification_info_for_passport1>date_issued_for_passport': { 'value': '2024-05-31' },
+  }
+```
+
+- On submit, iterate through keys and format the result. Formatting on submit provides flexibility in submit structures. If the format ever changes, just change the format function, no need to mess with data binding in react-hook-form.
+  Detailed steps:
+  - Split the key to get all its ancestors.
+  - Use `current` variable to record the current ancestor that is being handled
+  - Iterate through all ancestors and format the result structure.
+  - The last ancestor indicates that it should be the key of the value. Insert its value in the format result.
+
+```jsx
+const createField = (fieldId, content = '', selected = []) => {
+	return {
+		fieldId,
+		content,
+		selected
+	}
+}
+
+const createSelected = (selected = '') => {
+	if (Array.isArray(selected)) {
+		return selected.map((id) => createField(id))
+	}
+	if (selected !== '') {
+		return [createField(selected)]
+	}
+	return []
+}
+
+const formatFeilds = (fieldData) => {
+	return fieldData.map((field) => {
+		const formatField = {}
+		for (const [key, value] of Object.entries(field)) {
+			const ancestors = key.split('>')
+			let current = formatField
+			for (let index = 0; index < ancestors.length; index++) {
+				const ancestor = ancestors[index]
+				const isLastAncestor = index === ancestors.length - 1
+				// The last ancestor will be the key of the value.
+				if (isLastAncestor) {
+					if (Array.isArray(current)) {
+						const foundAncestor = current.find(({ fieldId }) => fieldId === ancestor)
+						if (foundAncestor) {
+							foundAncestor.content = value.value || ''
+							foundAncestor.selected = createSelected(value.id)
+							continue
+						}
+
+						current.push({
+							fieldId: ancestor,
+							content: value.value || '',
+							selected: createSelected(value.id)
+						})
+						continue
+					}
+
+					current.fieldId = ancestor
+					current.content = value.value || ''
+					current.selected = createSelected(value.id)
+					continue
+				}
+
+				// current is array
+				if (Array.isArray(current)) {
+					const foundAncestor = current.find(({ fieldId }) => fieldId === ancestor)
+
+					if (foundAncestor) current = foundAncestor.selected
+					else {
+						const total = current.push(createField(ancestor))
+						current = current[total - 1].selected
+					}
+					continue
+				}
+
+				// current is object
+				if (current.fieldId !== ancestor) {
+					current.fieldId = ancestor
+					current.content = ''
+					current.selected = []
+				}
+				current = current.selected
+			}
+		}
+		return formatField
+	})
+}
+```
